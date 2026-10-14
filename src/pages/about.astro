@@ -1,0 +1,55 @@
+---
+import Layout from "../layouts/Layout.astro";
+import MiniHeader from '../components/MiniHeader.astro';
+---
+
+<Layout title="at-view - about">
+    <MiniHeader></MiniHeader>
+    <div class="about-container">
+        <p>
+            at-view is a lightweight unauthenticated public Bluesky viewer.
+            It only shows the most recent activity of the user.
+            Users with a "!no-unauthenticated" label will be hidden.
+        </p>
+        <p>
+            No data is being logged, saved or archived. All requests come from your browser to public AT Proto services.
+        </p>
+
+        <p>
+            why? idk. look at this fop:
+        </p>
+        
+        <img src="/fop.png" alt="picture of a low-resolution fox plushie"/>
+    </div>
+</Layout>
+
+<style>
+    body {
+        font-family: system-ui, -apple-system, sans-serif;
+        background-color: var(--eg-background);
+        color: var(--eg-foreground);
+        max-width: 650px;
+        margin: 0 auto;
+        padding: 2rem 1rem;
+    }
+
+    header h1 {
+        text-align: center;
+        margin-bottom: 2rem;
+        color: var(--eg-green);
+    }
+
+    text {
+        color: var(--eg-foreground);
+    }
+    
+    p {
+        max-width: 65ch;
+        line-height: 1.6;
+        margin-bottom: 0;
+        text-align: left;
+        text-wrap: pretty;
+    }
+
+    .about-container { display: flex; flex-direction: column; gap: 1.5rem; }
+</style>

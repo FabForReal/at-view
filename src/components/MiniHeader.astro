@@ -1,0 +1,65 @@
+---
+
+---
+
+<header class="mini-header">
+    <div class="header-content">
+        <a href="/" class="logo">
+            🦊 at-view
+        </a>
+        <nav class="nav-links">
+            <a href="/about">About</a>
+            <a href="https://bsky.app/profile/fabforreal.com" target="_blank" rel="noopener noreferrer">Bluesky</a>
+        </nav>
+    </div>
+</header>
+
+<style>
+    .mini-header {
+        width: 100%;
+        padding: 1rem 0;
+    }
+
+    .header-content {
+        max-width: 650px;
+        margin: 0 auto;
+        padding: 0 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .mini-header .logo {
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: var(--eg-green);
+        letter-spacing: 0.05em;
+        text-decoration: none;
+    }
+
+    .mini-header .logo:hover {
+        color: var(--eg-foreground);
+        text-decoration: dotted underline;
+        text-decoration-thickness: 2px;
+        transition: color .1s;
+    }
+
+
+    .mini-header .nav-links {
+        display: flex;
+        gap: 1.25rem;
+        align-items: center;
+    }
+
+    .mini-header .nav-links a {
+        font-size: 0.8rem;
+        color: var(--eg-foreground);
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.2s ease-in-out;
+    }
+
+    .mini-header .nav-links a:hover {
+        color: var(--eg-purple);
+    }
+</style>

@@ -1,3 +1,7 @@
+---
+const { title = "" } = Astro.props;
+---
+
 <!doctype html>
 <html lang="en">
 	<head>
@@ -6,7 +10,7 @@
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<link rel="icon" href="/favicon.ico" />
 		<meta name="generator" content={Astro.generator} />
-		<title>at-view</title>
+		<title>{title}</title>
 	</head>
 	<body>
 		<slot />
@@ -14,6 +18,23 @@
 </html>
 
 <style>
+	/* evergarden scheme */
+	:root {
+		--eg-background: #232a2e;
+		--eg-foreground: #f8f9e8;
+
+		--eg-green: #cbe3b3;
+		--eg-pink: #f3c0e5;
+		--eg-purple: #d2bdf3;
+		--eg-blue: #b2caed;
+		--eg-yellow: #f5d098;
+
+		--eg-surface-0: #2b3337;
+		--eg-surface-1: #374145;
+		--eg-border: #1c2225;
+		--eg-muted: #171c1f;
+	}
+	
 	html,
 	body {
 		margin: 0;

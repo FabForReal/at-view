@@ -1,38 +1,15 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import AstroFeed from "../components/AstroFeed.astro";
-
+import MiniHeader from '../components/MiniHeader.astro';
 ---
 
-<Layout>
-	<header class="mini-header">
-		<div class="header-content">
-			<span class="logo">🦊 at-view</span>
-			<nav class="nav-links">
-				<a href="https://bsky.app" target="_blank" rel="noopener noreferrer">Bluesky</a>
-			</nav>
-		</div>
-	</header>
+<Layout title="at-view">
+	<MiniHeader></MiniHeader>
 	<AstroFeed></AstroFeed>
 </Layout>
 
 <style is:global>
-	:root {
-		--eg-background: #232a2e;
-		--eg-foreground: #f8f9e8;
-
-		--eg-green: #cbe3b3;
-		--eg-pink: #f3c0e5;
-		--eg-purple: #d2bdf3;
-		--eg-blue: #b2caed;
-		--eg-yellow: #f5d098;
-		
-		--eg-surface-0: #2b3337;
-		--eg-surface-1: #374145;
-		--eg-border: #1c2225;
-		--eg-muted: #171c1f; 
-	}
-
 	body {
 		font-family: system-ui, -apple-system, sans-serif;
 		background-color: var(--eg-background);
@@ -50,45 +27,5 @@ import AstroFeed from "../components/AstroFeed.astro";
 	
 	text {
 		color: var(--eg-foreground);
-	}
-
-	/* index header */
-	.mini-header {
-		width: 100%;
-		padding: 1rem 0;
-	}
-
-	.header-content {
-		max-width: 650px;
-		margin: 0 auto;
-		padding: 0 0;
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-	}
-
-	.mini-header .logo {
-		font-size: 0.9rem;
-		font-weight: 700;
-		color: var(--eg-green);
-		letter-spacing: 0.05em;
-	}
-	
-	.mini-header .nav-links {
-		display: flex;
-		gap: 1.25rem;
-		align-items: center;
-	}
-
-	.mini-header .nav-links a {
-		font-size: 0.8rem;
-		color: var(--eg-foreground);
-		text-decoration: none;
-		font-weight: 500;
-		transition: color 0.2s ease-in-out;
-	}
-
-	.mini-header .nav-links a:hover {
-		color: var(--eg-purple);
 	}
 </style>

@@ -1,4 +1,5 @@
 ---
+
 ---
 
 <div class="bsky-container">
@@ -8,7 +9,7 @@
                 type="text"
                 id="bsky-input"
                 placeholder="eg. bsky.app or did:plc:z72i7hdynmk6r22z27h6tvur"
-                value="bsky.app"
+                value=""
         />
         <button id="bsky-search-btn">Load Feed</button>
     </div>
@@ -16,16 +17,17 @@
     <!-- Status -->
     <div id="bsky-status" class="status-msg hidden"></div>
 
-    <!-- Profil -->
+    <!-- Profile -->
     <div id="bsky-profile" class="profile-card hidden">
         <img id="bsky-avatar" src="" alt="Avatar" />
         <div class="profile-info">
             <h2 id="bsky-name"></h2>
             <p id="bsky-handle"></p>
+            <p id="bsky-pds"></p>
             <p id="bsky-desc"></p>
             <div class="profile-subinfo">
+                <p id="bsky-joined"></p>
                 <p id="bsky-pronouns"></p>
-                <p>-</p>
                 <p id="bsky-website"></p>
             </div>
         </div>
@@ -44,6 +46,10 @@
 
 <script>
     import { Client, simpleFetchHandler } from '@atcute/client';
+    
+    // POST CONFIG DATA
+    const POST_AMOUNT = 10;
+    const LIKED_POST_AMOUNT = 10;
 
     const bskyClient = new Client({
         handler: simpleFetchHandler({ service: 'https://public.api.bsky.app' }),
@@ -61,6 +67,8 @@
     const descEl = document.getElementById('bsky-desc');
     const pronounEl = document.getElementById('bsky-pronouns');
     const websiteEl = document.getElementById('bsky-website');
+    const pdsEl = document.getElementById('bsky-pds');
+    const joinedEl = document.getElementById('bsky-joined');
 
     const tabsContainer = document.getElementById('bsky-tabs-container');
     const btnPosts = document.getElementById('bsky-btn-posts');
@@ -79,67 +87,80 @@
     function formatTimestamp(isoString: string) {
         if (!isoString) return '';
         const date = new Date(isoString);
-        return date.toLocaleDateString('de-DE', {
+        return date.toLocaleDateString('en-US', {
             day: '2-digit',
-            month: '2-digit',
+            month: "short",
             year: 'numeric',
             hour: '2-digit',
-            minute: '2-digit'
+            minute: '2-digit',
+            hour12: false
         });
     }
     
-    // creates the post elements
-    function createPostHTML(post: any, isLike = false) {
-        const timestamp = formatTimestamp(post.record.createdAt);
-        const postUrl = makeBlueskyWebLink(post.author.handle, post.uri);
+    // CREATE POST ELEMENTS METHOD
+    function createPostElement(post: any, prefix = "") : HTMLElement {
+        const article = document.createElement("article");
+        article.classList.add("post");
 
-        // read images
-        // let imagesHTML = '';
-        // if (post.embed && post.embed.$type === 'app.bsky.embed.images#view' && post.embed.images) {
-        //     imagesHTML = `
-        //       <div class="post-images">
-        //         ${post.embed.images.map((img: any) => `
-        //           <a href="${img.fullsize}" target="_blank" rel="noopener noreferrer">
-        //             <img src="img.thumb" alt="${img.alt || 'Bluesky Image'}" loading="lazy" />
-        //           </a>
-        //         `).join('')}
-        //       </div>
-        //     `;
-        // }
+        if (prefix === "Liked") {
+            article.classList.add("is-like");
+        }
+
+        const header = document.createElement("div");
+        header.className = "post-header";
+
+        const meta = document.createElement("div");
+        meta.className = "meta";
+
+        if (prefix) {
+            meta.appendChild(document.createTextNode(`${prefix} `));
+        }
+
+        const authorName = document.createElement("span");
+        authorName.className = "author-name";
+        authorName.textContent = post.author.displayName || post.author.handle;
+
+        meta.appendChild(authorName);
+        meta.appendChild(document.createTextNode(` @${post.author.handle}`))
+        header.appendChild(meta);
+
+        const text = document.createElement("p");
+        text.className = "post-text";
+        text.textContent = post.record.text || "";
         
-        // ${imagesHTML} - after post-text
+        // footer section
+        const footer = document.createElement("div");
+        footer.className = "post-footer";
+
+        const time = document.createElement("div");
+        time.className = "post-time";
+        time.textContent = formatTimestamp(post.record.createdAt);
+
+        const link = document.createElement("a");
+        link.className = "bsky-link";
+        link.href = makeBlueskyWebLink(post.author.handle, post.uri);
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = "Bluesky ↗";
+
+        footer.appendChild(time);
+        footer.appendChild(link);
         
-        return `
-      <div class="post ${isLike ? 'is-like' : ''}">
-        <div class="post-header">
-          <div class="meta">
-            ${isLike ? 'Liked ' : ''}
-            <span class="author-name">${post.author.displayName || post.author.handle}</span> 
-            @${post.author.handle}
-          </div>
-        </div>
-        
-        <p class="post-text">${post.record.text || ''}</p>
-        
-        
-                
-        <div class="post-footer">
-          <div class="post-time">${timestamp}</div>
-          <a href="${postUrl}" target="_blank" rel="noopener noreferrer" class="bsky-link">
-            Bluesky ↗
-          </a>
-        </div>
-      </div>
-    `;
+        article.appendChild(header);
+        article.appendChild(text);
+        article.appendChild(footer);
+
+        return article;
     }
     
+    // MAIN METHOD
     async function loadBlueskyFeed() {
         const handle = input.value.trim();
         if (!handle) return;
 
         if (statusEl) {
             statusEl.classList.remove('hidden');
-            statusEl.innerText = 'resolving user and pds...';
+            statusEl.innerText = 'resolving user profile and pds...';
         }
         profileEl?.classList.add('hidden');
         tabsContainer?.classList.add('hidden');
@@ -152,66 +173,91 @@
             const profileRes = await bskyClient.get('app.bsky.actor.getProfile', 
                 { params: { actor: handle } });
             
-            if(!profileRes.ok)
-            {
-                throw new Error('User not found.');
-            }
+            if(!profileRes.ok) throw new Error('User not found.');
             const profile= profileRes.data;
+            
+            // check if the user has a !no-unauthenticated label
+            if(profile.labels)
+            {
+                const hasNoAuthLabel = profile.labels.some(
+                    (label) => label.val === '!no-unauthenticated'
+                );
+                if(hasNoAuthLabel)
+                    throw new Error('User has requested to hide from logged-out users.')
+            }
 
             // using the did from the getProfile get the users plc entry
             const plcRes = await fetch(`https://plc.directory/${profile.did}`);
-            if (!plcRes.ok) throw new Error('Failed to resolve user did');
+            if (!plcRes.ok) throw new Error('Failed to resolve user did.');
             const plcDoc = await plcRes.json();
             
             // get user pds
             const pdsService = plcDoc.service.find((s: any) => s.id === '#atproto_pds')?.serviceEndpoint;
-            if (!pdsService) throw new Error('Failed to resolve user pds');
+            if (!pdsService) throw new Error('Failed to resolve user pds.');
             
             const pdsClient = new Client({
                 handler: simpleFetchHandler({ service: pdsService }),
             });
             
-            // update profile frontend
-            if (avatarEl) avatarEl.src = profile.avatar || './public/placeholder.png';
-            if (nameEl) nameEl.innerText = profile.displayName || handle;
-            if (handleEl) handleEl.innerText = `@${profile.handle}`;
-            if (descEl) descEl.innerText = profile.description || '';
-            if (pronounEl) pronounEl.innerText = profile.pronouns || 'pronouns undefined';
-            if (websiteEl) websiteEl.innerText = profile.website || 'website undefined';
-            profileEl?.classList.remove('hidden');
 
+            // update profile frontend
+            if (avatarEl) avatarEl.src = profile.avatar || '/fop.png';
+            if (nameEl) nameEl.textContent = profile.displayName || handle;
+            if (handleEl) handleEl.textContent = `@${profile.handle}`;
+            if (descEl) descEl.textContent = profile.description || '';
+            if (pronounEl) pronounEl.textContent = profile.pronouns || '';
+            if (websiteEl) websiteEl.textContent = profile.website || '';
+            if (pdsEl) pdsEl.textContent = pdsService || '';
+            if(profile.createdAt)
+                if (joinedEl) joinedEl.textContent = formatTimestamp(profile.createdAt) || '';
+            profileEl?.classList.remove('hidden');
+            
             // load user posts via bluesky appview
             const feedRes = await bskyClient.get('app.bsky.feed.getAuthorFeed', {
-                params: { actor: handle, filter: 'posts_and_author_threads', limit: 15 }
-            });
-            if(feedRes.ok)
-            {
-                const postsHTML = feedRes.data.feed.map(({ post }: any) => createPostHTML(post)).join('');
-                if (feedPosts) feedPosts.innerHTML = postsHTML
-                    || `<p class="empty-msg">${profile.displayName || handle} seems rather shy</p>`;
-            }
-
-            // load likes via user repo
-            const repoRes = await pdsClient.get('com.atproto.repo.listRecords', {
-                params: { repo: profile.did, collection: 'app.bsky.feed.like', limit: 15 }
+                params: { actor: handle, filter: 'posts_and_author_threads', limit: POST_AMOUNT }
             });
             
+            if(feedRes.ok)
+            {
+                if(feedPosts == null) return
+                console.log(feedRes.data.feed[0]);
+                feedPosts.replaceChildren();
+                feedPosts.innerHTML = `<p class="empty-msg">${profile.displayName || handle} seems rather shy.</p>`;
+                
+                const userPosts: HTMLElement[] = feedRes.data.feed.map((item: any) => {
+                    const isRepost =
+                        item.reason?.$type === "app.bsky.feed.defs#reasonRepost";
+                    return createPostElement(item.post, isRepost ? "Reposted" : "");
+                });
+                if(userPosts.length > 0)
+                    feedPosts.replaceChildren(...userPosts);
+            }
+            
+            // load likes via user repo
+            const repoRes = await pdsClient.get('com.atproto.repo.listRecords', {
+                params: { repo: profile.did, collection: 'app.bsky.feed.like', limit: LIKED_POST_AMOUNT }
+            });
             if(repoRes.ok)
             {
+                if(feedLikes == null) return
+                feedLikes.replaceChildren();
+                feedLikes.innerHTML = `<p class="empty-msg">${profile.displayName || handle} has no whimsy.</p>`;
+                
                 const uris = repoRes.data.records?.map((r: any) => r.value.subject.uri) || [];
                 
                 if (uris.length > 0) {
                     const hydratedRes = await bskyClient.get('app.bsky.feed.getPosts', 
                         { params: { uris } });
-                    const likesHTML = hydratedRes.data.posts.map((post: any) => createPostHTML(post, true)).join('');
-                    if (feedLikes) feedLikes.innerHTML = likesHTML;
-                } 
-                else // no likes found
-                {
-                    if (feedLikes) feedLikes.innerHTML = 
-                        `<p class="empty-msg">${profile.displayName || handle} has no whimsy.</p>`;
+                    if(hydratedRes.ok)
+                    {
+                        const likedPosts: HTMLElement[] = hydratedRes.data.posts.map((post: any) => 
+                            createPostElement(post, "Liked"));
+                        if(likedPosts.length > 0)
+                            feedLikes.replaceChildren(...likedPosts);
+                    }
                 }
             }
+            // all api calls completed
 
             // show tabs, hide status
             statusEl?.classList.add('hidden');
@@ -237,15 +283,17 @@
             feedPosts?.classList.add('hidden');
         }
     }
-
-    // Event Listener
+    
+    // ON PAGE LOAD
+    
+    // add event listener
     searchBtn?.addEventListener('click', loadBlueskyFeed);
     input?.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadBlueskyFeed(); });
 
     btnPosts?.addEventListener('click', () => { currentTab = 'posts'; updateTabVisibility(); });
     btnLikes?.addEventListener('click', () => { currentTab = 'likes'; updateTabVisibility(); });
-
-    loadBlueskyFeed();
+    
+    loadBlueskyFeed()
 </script>
 
 <style is:global>
@@ -298,16 +346,18 @@
         width: 70px; 
         height: 70px; 
         background: var(--eg-surface-1); 
-        object-fit: cover; 
-        flex-shrink: 0; 
-        margin-bottom: 6rem 
+        object-fit: cover;
+        flex-shrink: 0;
+        align-self: start;
     }
     .bsky-container .profile-info h2 { margin: 0; font-size: 1.3rem; color: var(--eg-green); }
     .bsky-container .profile-info #bsky-handle { color: var(--eg-green); }
     .bsky-container .profile-info #bsky-desc { color: var(--eg-foreground); }
-    .bsky-container .profile-subinfo { display: flex; flex-direction: row; gap: 0.5rem; }
-    .bsky-container .profile-info #bsky-pronouns { color: var(--eg-foreground); }
-    .bsky-container .profile-info #bsky-website { color: var(--eg-foreground); }
+    .bsky-container .profile-info #bsky-pds { color: var(--eg-purple); font-size: 0.8rem;}
+    .bsky-container .profile-subinfo { display: flex; flex-direction: row; gap: 1rem; font-size: 0.8rem;}
+    .bsky-container .profile-subinfo #bsky-pronouns { color: var(--eg-foreground); margin: 0 0;}
+    .bsky-container .profile-subinfo #bsky-website { color: var(--eg-foreground); margin: 0 0;}
+    .bsky-container .profile-subinfo #bsky-joined { color: var(--eg-foreground); margin: 0 0;}
 
     /* tabs navigation */
     .bsky-container .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -372,30 +422,7 @@
         color: var(--eg-green);
         text-decoration: underline;
     }
-
-    /* images in posts */
-    .post-images {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-        gap: 8px;
-        margin-top: 0.75rem;
-        border-radius: 8px;
-        overflow: hidden;
-    }
-
-    .post-images img {
-        width: 100%;
-        height: 180px;
-        object-fit: cover;
-        border-radius: 6px;
-        transition: transform 0.2s ease-in-out;
-    }
-
-    .post-images img:hover {
-        transform: scale(1.02);
-        border-color: var(--eg-green);
-    }
-
+    
     /* other */
 
     .bsky-container .empty-msg {

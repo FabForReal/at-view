@@ -1,6 +1,12 @@
 # at-view
 
-a simple unauthenticated public bluesky viewer
+a lightweight unauthenticated public bluesky viewer running on the client.
+it only shows the most recent activity of the user.
+users with a "!no-unauthenticated" label will be hidden.
+
+built using astro 7 on cloudflare workers, uses @atcute packages for atproto stuff.
+
+why? idk.
 
 ## 🧞 Commands
 
