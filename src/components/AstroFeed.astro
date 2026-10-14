@@ -1,0 +1,408 @@
+---
+---
+
+<div class="bsky-container">
+    
+    <div class="search-box">
+        <input
+                type="text"
+                id="bsky-input"
+                placeholder="eg. bsky.app or did:plc:z72i7hdynmk6r22z27h6tvur"
+                value="bsky.app"
+        />
+        <button id="bsky-search-btn">Load Feed</button>
+    </div>
+
+    <!-- Status -->
+    <div id="bsky-status" class="status-msg hidden"></div>
+
+    <!-- Profil -->
+    <div id="bsky-profile" class="profile-card hidden">
+        <img id="bsky-avatar" src="" alt="Avatar" />
+        <div class="profile-info">
+            <h2 id="bsky-name"></h2>
+            <p id="bsky-handle"></p>
+            <p id="bsky-desc"></p>
+            <div class="profile-subinfo">
+                <p id="bsky-pronouns"></p>
+                <p>-</p>
+                <p id="bsky-website"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab-Navigation -->
+    <div id="bsky-tabs-container" class="tabs hidden">
+        <button id="bsky-btn-posts" class="tab-btn active">Posts</button>
+        <button id="bsky-btn-likes" class="tab-btn">Likes</button>
+    </div>
+
+    <!-- Feeds -->
+    <div id="bsky-feed-posts" class="feed hidden"></div>
+    <div id="bsky-feed-likes" class="feed hidden"></div>
+</div>
+
+<script>
+    import { Client, simpleFetchHandler } from '@atcute/client';
+
+    const bskyClient = new Client({
+        handler: simpleFetchHandler({ service: 'https://public.api.bsky.app' }),
+    });
+    
+    // DOM ELEMENTS
+    const input = document.getElementById('bsky-input') as HTMLInputElement;
+    const searchBtn = document.getElementById('bsky-search-btn');
+    const statusEl = document.getElementById('bsky-status');
+
+    const profileEl = document.getElementById('bsky-profile');
+    const avatarEl = document.getElementById('bsky-avatar') as HTMLImageElement;
+    const nameEl = document.getElementById('bsky-name');
+    const handleEl = document.getElementById('bsky-handle');
+    const descEl = document.getElementById('bsky-desc');
+    const pronounEl = document.getElementById('bsky-pronouns');
+    const websiteEl = document.getElementById('bsky-website');
+
+    const tabsContainer = document.getElementById('bsky-tabs-container');
+    const btnPosts = document.getElementById('bsky-btn-posts');
+    const btnLikes = document.getElementById('bsky-btn-likes');
+    const feedPosts = document.getElementById('bsky-feed-posts');
+    const feedLikes = document.getElementById('bsky-feed-likes');
+    
+    // default tab
+    let currentTab = 'posts';
+
+    function makeBlueskyWebLink(authorHandle: string, uri: string) {
+        const postId = uri.split('/').pop();
+        return `https://bsky.app/profile/${authorHandle}/post/${postId}`;
+    }
+
+    function formatTimestamp(isoString: string) {
+        if (!isoString) return '';
+        const date = new Date(isoString);
+        return date.toLocaleDateString('de-DE', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+    
+    // creates the post elements
+    function createPostHTML(post: any, isLike = false) {
+        const timestamp = formatTimestamp(post.record.createdAt);
+        const postUrl = makeBlueskyWebLink(post.author.handle, post.uri);
+
+        // read images
+        // let imagesHTML = '';
+        // if (post.embed && post.embed.$type === 'app.bsky.embed.images#view' && post.embed.images) {
+        //     imagesHTML = `
+        //       <div class="post-images">
+        //         ${post.embed.images.map((img: any) => `
+        //           <a href="${img.fullsize}" target="_blank" rel="noopener noreferrer">
+        //             <img src="img.thumb" alt="${img.alt || 'Bluesky Image'}" loading="lazy" />
+        //           </a>
+        //         `).join('')}
+        //       </div>
+        //     `;
+        // }
+        
+        // ${imagesHTML} - after post-text
+        
+        return `
+      <div class="post ${isLike ? 'is-like' : ''}">
+        <div class="post-header">
+          <div class="meta">
+            ${isLike ? 'Liked ' : ''}
+            <span class="author-name">${post.author.displayName || post.author.handle}</span> 
+            @${post.author.handle}
+          </div>
+        </div>
+        
+        <p class="post-text">${post.record.text || ''}</p>
+        
+        
+                
+        <div class="post-footer">
+          <div class="post-time">${timestamp}</div>
+          <a href="${postUrl}" target="_blank" rel="noopener noreferrer" class="bsky-link">
+            Bluesky ↗
+          </a>
+        </div>
+      </div>
+    `;
+    }
+    
+    async function loadBlueskyFeed() {
+        const handle = input.value.trim();
+        if (!handle) return;
+
+        if (statusEl) {
+            statusEl.classList.remove('hidden');
+            statusEl.innerText = 'resolving user and pds...';
+        }
+        profileEl?.classList.add('hidden');
+        tabsContainer?.classList.add('hidden');
+        feedPosts?.classList.add('hidden');
+        feedLikes?.classList.add('hidden');
+
+        try {
+            
+            // get user profile
+            const profileRes = await bskyClient.get('app.bsky.actor.getProfile', 
+                { params: { actor: handle } });
+            
+            if(!profileRes.ok)
+            {
+                throw new Error('User not found.');
+            }
+            const profile= profileRes.data;
+
+            // using the did from the getProfile get the users plc entry
+            const plcRes = await fetch(`https://plc.directory/${profile.did}`);
+            if (!plcRes.ok) throw new Error('Failed to resolve user did');
+            const plcDoc = await plcRes.json();
+            
+            // get user pds
+            const pdsService = plcDoc.service.find((s: any) => s.id === '#atproto_pds')?.serviceEndpoint;
+            if (!pdsService) throw new Error('Failed to resolve user pds');
+            
+            const pdsClient = new Client({
+                handler: simpleFetchHandler({ service: pdsService }),
+            });
+            
+            // update profile frontend
+            if (avatarEl) avatarEl.src = profile.avatar || './public/placeholder.png';
+            if (nameEl) nameEl.innerText = profile.displayName || handle;
+            if (handleEl) handleEl.innerText = `@${profile.handle}`;
+            if (descEl) descEl.innerText = profile.description || '';
+            if (pronounEl) pronounEl.innerText = profile.pronouns || 'pronouns undefined';
+            if (websiteEl) websiteEl.innerText = profile.website || 'website undefined';
+            profileEl?.classList.remove('hidden');
+
+            // load user posts via bluesky appview
+            const feedRes = await bskyClient.get('app.bsky.feed.getAuthorFeed', {
+                params: { actor: handle, filter: 'posts_and_author_threads', limit: 15 }
+            });
+            if(feedRes.ok)
+            {
+                const postsHTML = feedRes.data.feed.map(({ post }: any) => createPostHTML(post)).join('');
+                if (feedPosts) feedPosts.innerHTML = postsHTML
+                    || `<p class="empty-msg">${profile.displayName || handle} seems rather shy</p>`;
+            }
+
+            // load likes via user repo
+            const repoRes = await pdsClient.get('com.atproto.repo.listRecords', {
+                params: { repo: profile.did, collection: 'app.bsky.feed.like', limit: 15 }
+            });
+            
+            if(repoRes.ok)
+            {
+                const uris = repoRes.data.records?.map((r: any) => r.value.subject.uri) || [];
+                
+                if (uris.length > 0) {
+                    const hydratedRes = await bskyClient.get('app.bsky.feed.getPosts', 
+                        { params: { uris } });
+                    const likesHTML = hydratedRes.data.posts.map((post: any) => createPostHTML(post, true)).join('');
+                    if (feedLikes) feedLikes.innerHTML = likesHTML;
+                } 
+                else // no likes found
+                {
+                    if (feedLikes) feedLikes.innerHTML = 
+                        `<p class="empty-msg">${profile.displayName || handle} has no whimsy.</p>`;
+                }
+            }
+
+            // show tabs, hide status
+            statusEl?.classList.add('hidden');
+            tabsContainer?.classList.remove('hidden');
+            updateTabVisibility();
+
+        } catch (err: any) {
+            console.error(err);
+            if (statusEl) statusEl.innerText = `Error: ${err.message || 'User not found.'}`;
+        }
+    }
+    
+    function updateTabVisibility() {
+        if (currentTab === 'posts') {
+            btnPosts?.classList.add('active');
+            btnLikes?.classList.remove('active');
+            feedPosts?.classList.remove('hidden');
+            feedLikes?.classList.add('hidden');
+        } else {
+            btnLikes?.classList.add('active');
+            btnPosts?.classList.remove('active');
+            feedLikes?.classList.remove('hidden');
+            feedPosts?.classList.add('hidden');
+        }
+    }
+
+    // Event Listener
+    searchBtn?.addEventListener('click', loadBlueskyFeed);
+    input?.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadBlueskyFeed(); });
+
+    btnPosts?.addEventListener('click', () => { currentTab = 'posts'; updateTabVisibility(); });
+    btnLikes?.addEventListener('click', () => { currentTab = 'likes'; updateTabVisibility(); });
+
+    loadBlueskyFeed();
+</script>
+
+<style is:global>
+    .bsky-container { display: flex; flex-direction: column; gap: 1.5rem; }
+
+    .bsky-container .search-box { display: flex; gap: 10px; border: 0; }
+    .bsky-container .search-box input {
+        flex: 1;
+        padding: 12px;
+        background-color: var(--eg-surface-1);
+        border: 0;
+        color: var(--eg-foreground);
+        font-size: 1rem;
+    }
+    .bsky-container .search-box input:focus {
+        outline: 2px solid var(--eg-green);
+        transition: outline 0.2s;
+    }
+    .bsky-container .search-box button {
+        padding: 10px 20px;
+        background-color: var(--eg-green);
+        color: var(--eg-background);
+        border: none;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    .bsky-container .search-box button:hover {
+        background-color: var(--eg-foreground);
+    }
+
+    /* Status */
+    .bsky-container .status-msg {
+        background-color: var(--eg-surface-0);
+        color: var(--eg-yellow);
+        padding: 12px;
+        text-align: center;
+        font-weight: 500;
+    }
+
+    /* Profile */
+    .bsky-container .profile-card {
+        background-color: var(--eg-surface-0);
+        padding: 1.5rem;
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+    }
+    .bsky-container .profile-card img {
+        width: 70px; 
+        height: 70px; 
+        background: var(--eg-surface-1); 
+        object-fit: cover; 
+        flex-shrink: 0; 
+        margin-bottom: 6rem 
+    }
+    .bsky-container .profile-info h2 { margin: 0; font-size: 1.3rem; color: var(--eg-green); }
+    .bsky-container .profile-info #bsky-handle { color: var(--eg-green); }
+    .bsky-container .profile-info #bsky-desc { color: var(--eg-foreground); }
+    .bsky-container .profile-subinfo { display: flex; flex-direction: row; gap: 0.5rem; }
+    .bsky-container .profile-info #bsky-pronouns { color: var(--eg-foreground); }
+    .bsky-container .profile-info #bsky-website { color: var(--eg-foreground); }
+
+    /* tabs navigation */
+    .bsky-container .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .bsky-container .tab-btn {
+        padding: 10px;
+        background-color: var(--eg-surface-0);
+        color: var(--eg-purple);
+        border: 0;
+        font-weight: bold;
+        cursor: pointer;
+        text-align: center;
+        font-size: 1rem;
+        transition: all 0.2s;
+    }
+    .bsky-container .tab-btn.active {
+        background-color: var(--eg-green);
+        color: var(--eg-background);
+        border-color: var(--eg-green);
+    }
+
+    /* Feeds Posts */
+    .bsky-container .feed { display: flex; flex-direction: column; gap: 1rem; }
+    .bsky-container .post {
+        background-color: var(--eg-surface-0);
+        padding: 1.25rem;
+        border-left: 4px solid var(--eg-green);
+    }
+
+    .bsky-container .post-header {
+        margin-bottom: 0.75rem;
+    }
+
+    .bsky-container .meta { font-size: 0.85rem; color: var(--eg-foreground); margin-bottom: 0.5rem; }
+    .bsky-container .author-name { font-weight: 700; color: var(--eg-foreground); }
+    .bsky-container .post-text { white-space: pre-wrap; margin: 0; line-height: 1.5; color: var(--eg-foreground); }
+    .bsky-container .post.is-like { border-left-color: var(--eg-pink); }
+
+    .bsky-container .post-time {
+        font-size: 0.8rem;
+        color: var(--eg-foreground);
+        align-self: center;
+    }
+
+    .bsky-container .post-footer {
+        margin-top: 1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-top: 4px dotted var(--eg-border);
+        padding-top: 0.5rem;
+    }
+
+    .bsky-container .bsky-link {
+        font-size: 0.85rem;
+        color: var(--eg-purple);
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.2s;
+    }
+
+    .bsky-container .bsky-link:hover {
+        color: var(--eg-green);
+        text-decoration: underline;
+    }
+
+    /* images in posts */
+    .post-images {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 8px;
+        margin-top: 0.75rem;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .post-images img {
+        width: 100%;
+        height: 180px;
+        object-fit: cover;
+        border-radius: 6px;
+        transition: transform 0.2s ease-in-out;
+    }
+
+    .post-images img:hover {
+        transform: scale(1.02);
+        border-color: var(--eg-green);
+    }
+
+    /* other */
+
+    .bsky-container .empty-msg {
+        color: var(--eg-foreground);
+        text-align: center;
+        font-weight: 500;
+    }
+
+    .bsky-container .hidden { display: none !important; }
+</style>
